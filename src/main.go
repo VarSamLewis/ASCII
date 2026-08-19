@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/fatih/color"
 	"golang.org/x/term"
 	"image"
 	_ "image/jpeg"
@@ -59,7 +60,7 @@ func main() {
 	ramp := "`^\",:;Il!i~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$"
 
 	for y := 0; y < height; y += yStep {
-		row := make([]rune, 0, width/xStep)
+		// row := make([]rune, 0, width/xStep)
 
 		for x := 0; x < width; x += xStep {
 			r, g, b, _ := img.At(
@@ -67,25 +68,37 @@ func main() {
 				y+bounds.Min.Y,
 			).RGBA()
 
-			brightness := calc_brightness(r, g, b, *method)
+			r8 := uint8(r >> 8)
+			g8 := uint8(g >> 8)
+			b8 := uint8(b >> 8)
+
+			brightness := calc_brightness(r8, g8, b8, *method)
 			index := brightness * (len(ramp) - 1) / 255
-			row = append(row, rune(ramp[index]))
+			//row = append(row, rune(ramp[index]))
+
+			char := string(ramp[index])
+
+			color.RGB(
+				int(r8),
+				int(g8),
+				int(b8),
+			).Print(char)
 		}
 
-		fmt.Println(string(row))
+		//fmt.Println(string(row))
+		fmt.Println()
 	}
 
 }
 
-func calc_brightness(r uint32, g uint32, b uint32, method string) int {
-	r8, g8, b8 := r>>8, g>>8, b>>8
+func calc_brightness(r uint8, g uint8, b uint8, method string) int {
 	switch method {
 	case "average":
-		return int((r8 + g8 + b8) / 3)
+		return int((uint32(r) + uint32(g) + uint32(b)) / 3)
 	case "lightness":
-		return int((max(r8, g8, b8) + min(r8, g8, b8)) / 2)
+		return int((max(r, g, b) + min(r, g, b)) / 2)
 	case "luminosity":
-		return int(0.21*float64(r8) + 0.72*float64(g8) + 0.07*float64(b8))
+		return int(0.21*float64(r) + 0.72*float64(g) + 0.07*float64(b))
 	default:
 		fmt.Fprintf(os.Stderr, "unknown method: %s\n", method)
 		os.Exit(1)
