@@ -11,8 +11,10 @@ import (
 
 func main() {
 	method := flag.String("method", "luminosity", "brightness method: average, lightness, luminosity")
-	flag.Parse()
+	xPixel := flag.Int("x", 0, "horizontal pixel step (0 = auto)")
+	yPixel := flag.Int("y", 0, "vertical pixel step (0 = auto)")
 
+	flag.Parse()
 	file, err := os.Open(flag.Arg(0))
 	if err != nil {
 		panic(err)
@@ -39,8 +41,18 @@ func main() {
 	fmt.Printf("terminalWidth: %d \n", terminalWidth)
 	fmt.Printf("terminalHeight: %d \n", terminalHeight)
 
-	xStep := max(1, width/terminalWidth)
-	yStep := max(1, height/(terminalHeight/2))
+	var xStep, yStep int
+	if *xPixel > 0 {
+		xStep = *xPixel
+	} else {
+		xStep = max(1, (width+terminalWidth-1)/terminalWidth)
+	}
+	if *yPixel > 0 {
+		yStep = *yPixel
+	} else {
+		yStep = max(1, (height+terminalHeight/2-1)/(terminalHeight/2))
+	}
+
 	fmt.Printf("xStep: %d \n", xStep)
 	fmt.Printf("yStep: %d \n", yStep)
 
