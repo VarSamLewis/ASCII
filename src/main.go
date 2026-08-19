@@ -3,17 +3,41 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/fatih/color"
-	"golang.org/x/term"
 	"image"
-	_ "image/jpeg"
+	"image/color"
+	_ "image/gif"
+	"image/jpeg"
+	_ "image/png"
 	"os"
+	"strconv"
+	"strings"
+
+	fatih "github.com/fatih/color"
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/basicfont"
+	"golang.org/x/image/math/fixed"
+	"golang.org/x/term"
 )
+
+func parseRes(s string) (int, int, bool) {
+	parts := strings.Split(s, "x")
+	if len(parts) != 2 {
+		return 0, 0, false
+	}
+	w, err1 := strconv.Atoi(parts[0])
+	h, err2 := strconv.Atoi(parts[1])
+	if err1 != nil || err2 != nil || w <= 0 || h <= 0 {
+		return 0, 0, false
+	}
+	return w, h, true
+}
 
 func main() {
 	method := flag.String("method", "luminosity", "brightness method: average, lightness, luminosity")
 	xPixel := flag.Int("x", 0, "horizontal pixel step (0 = auto)")
 	yPixel := flag.Int("y", 0, "vertical pixel step (0 = auto)")
+	output := flag.String("o", "", "output JPG file path")
+	res := flag.String("res", "", "target output resolution WxH (e.g. 1920x1080)")
 
 	flag.Parse()
 	file, err := os.Open(flag.Arg(0))
@@ -59,9 +83,16 @@ func main() {
 
 	ramp := "`^\",:;Il!i~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$"
 
-	for y := 0; y < height; y += yStep {
-		// row := make([]rune, 0, width/xStep)
+	type cell struct {
+		ch string
+		r  uint8
+		g  uint8
+		b  uint8
+	}
+	var grid [][]cell
 
+	for y := 0; y < height; y += yStep {
+		var row []cell
 		for x := 0; x < width; x += xStep {
 			r, g, b, _ := img.At(
 				x+bounds.Min.X,
@@ -74,21 +105,64 @@ func main() {
 
 			brightness := calc_brightness(r8, g8, b8, *method)
 			index := brightness * (len(ramp) - 1) / 255
-			//row = append(row, rune(ramp[index]))
 
 			char := string(ramp[index])
 
-			color.RGB(
-				int(r8),
-				int(g8),
-				int(b8),
-			).Print(char)
+			fatih.RGB(int(r8), int(g8), int(b8)).Print(char)
+			row = append(row, cell{ch: char, r: r8, g: g8, b: b8})
 		}
-
-		//fmt.Println(string(row))
+		grid = append(grid, row)
 		fmt.Println()
 	}
 
+	if *output != "" {
+		imgW := 0
+		for _, row := range grid {
+			if len(row) > imgW {
+				imgW = len(row)
+			}
+		}
+		imgH := len(grid)
+
+		cw, ch := 6, 12
+		if *res != "" {
+			resW, resH, ok := parseRes(*res)
+			if !ok {
+				fmt.Fprintf(os.Stderr, "invalid resolution: %s (use WxH)\n", *res)
+				os.Exit(1)
+			}
+			cw = resW / imgW
+			ch = resH / imgH
+			if cw < 1 {
+				cw = 1
+			}
+			if ch < 1 {
+				ch = 1
+			}
+		}
+
+		pg := image.NewRGBA(image.Rect(0, 0, imgW*cw, imgH*ch))
+		d := font.Drawer{
+			Dst:  pg,
+			Src:  image.White,
+			Face: basicfont.Face7x13,
+			Dot:  fixed.P(0, 0),
+		}
+		for y, row := range grid {
+			for x, c := range row {
+				d.Src = image.NewUniform(color.RGBA{R: c.r, G: c.g, B: c.b, A: 255})
+				d.Dot = fixed.P(x*cw, (y+1)*ch)
+				d.DrawString(c.ch)
+			}
+		}
+		f, err := os.Create(*output)
+		if err != nil {
+			panic(err)
+		}
+		defer f.Close()
+		jpeg.Encode(f, pg, &jpeg.Options{Quality: 95})
+		fmt.Printf("Saved to %s (%dx%d)\n", *output, imgW*cw, imgH*ch)
+	}
 }
 
 func calc_brightness(r uint8, g uint8, b uint8, method string) int {
