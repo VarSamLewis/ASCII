@@ -1,0 +1,15 @@
+# Nix build output
+result
+result-*
+
+# Go build output
+ascii
+
+# Go
+*.exe
+*.test
+*.out
+
+# OS
+.DS_Store
+Thumbs.db
